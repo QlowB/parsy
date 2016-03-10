@@ -19,40 +19,15 @@
  *
  * ==========================================================================*/
 
+#ifndef PARSY_TOKENS_H
+#define PARSY_TOKENS_H 
+#include <stdint.h>
 
-%{
-#include "ParserAST.h"
-#include "parser.h"
-
-
-#define SET_TOKEN(t) (yylval.token = t)
-#define SET_STRING (yylval.string = new std::string(yytext, yyleng))
-
-extern "C" int yywrap()
+namespace parsy
 {
-    return 1; /* do not continue on EOF */
+    typedef uint32_t TokenId;
 }
-/*\n                      return SET_TOKEN(NEW_LINE);*/
-
-%}
-
-
-%%
 
 
 
-[\t\n ]                   ; // Space or tab ignored
-\/\*[.\n]*\*\/          ; // comment
-
-
-
-=                       return SET_TOKEN(ASSIGN);
-\|                      return SET_TOKEN(PIPE);
-;                       return SET_TOKEN(SEMICOLON);
-
-
-[a-zA-Z_][a-zA-Z0-9_]*  SET_STRING; return IDENTIFIER;
-.                       printf("Unknown token!\n"); yyterminate();
-
-%%
-
+#endif /* PARSY_TOKENS_H */
