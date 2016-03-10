@@ -19,6 +19,7 @@
  *
  * ==========================================================================*/
 #include "Structure.h"
+#include <string>
 
 using namespace parsy;
 
@@ -78,43 +79,74 @@ Terminal* ParserUnit::getTerminal(const std::string& name)
 }
  
 
-void ParserUnit::generateParserCode(std::ostream& header, std::ostream& source)
+void ParserUnit::generateParserCode(std::ostream& header, std::ostream& source,
+        const std::string& headerName)
 {
     using namespace std;
 
-#define TAB "\s\s\s\s"
 
     header <<
         "/// parsy-generated header file\n"
         "#include <vector>\n\n"
-        "typedef unsigned int TokenId;\n\n";
+        "typedef unsigned int TokenId;\n\n"
+        "struct NodeBase\n{\n};\n\n\n";
+
+    for (size_t i = 0; i < nonterminals.size(); i++) {
+        header <<
+            "struct " << nonterminals[i]->getName() << "Node;\n";
+    }
 
     header <<
-        "class Parser\n{\n"
+        "\n\nclass Parser\n{\n"
         "    void parse(Tokenizer& tokenizer);\n"
         "};\n\n\n";
+
+    for (size_t i = 0; i < nonterminals.size(); i++) {
+        Nonterminal* nt = nonterminals[i];
+        std::string baseName = nt->getName() + "NodeBase";
+        header <<
+            "struct " << baseName << " : public NodeBase\n{\n" <<
+            "};\n\n\n";
+
+        for (size_t j = 0; j < nt->patterns.size(); j++) {
+            SymbolPattern* pat = nt->patterns[j];
+            header <<
+                "struct " << nt->getName() << "Node" << (j + 1) <<
+                " : public " << baseName <<
+                "\n{\n";
+            for (size_t k = 0; k < pat->symbols.size(); k++) {
+                header <<
+                    "    " << pat->symbols[k]->getName() << "NodeBase* part" <<
+                    (k + 1) << ";\n";
+            }
+            header <<
+                "};\n\n\n";
+        } 
+    }
 
     header << "// Terminals\n";
     for (size_t i = 0; i < terminals.size(); i++) {
         source << "const TokenId " << terminals[i]->getName() <<
-            "_id = " << i << ";\n";
+            "Id = " << i << ";\n";
     }
 
     header << "\n// Nonterminals\n";
     for (size_t i = 0; i < nonterminals.size(); i++) {
-        source << "const TokenId " << nonterminals[i]->getName() <<
-            "_id = " << i + terminals.size() << ";\n";
+        header << "const TokenId " << nonterminals[i]->getName() <<
+            "Id = " << i + terminals.size() << ";\n";
     }
 
-    header << "\n\n"
+    header << "\n";
+    
+    source <<
+        "/// parsy-generated source file\n"
+        "#include \"" << headerName << "\"\n";
+
+    source << "\n\n"
         "struct StackElement\n{\n"
         "    TokenId tokenId;\n"
         "    AstNode* node;\n"
         "};\n\n\n";
-    
-    source <<
-        "/// parsy-generated source file\n"
-        "#include \"Parser.h\"\n";
 
     source <<
         "void Parser::parse(Tokenizer& tokenizer)\n{\n"
@@ -135,12 +167,23 @@ void ParserUnit::generateParserCode(std::ostream& header, std::ostream& source)
                 Symbol* sym = p->symbols[k];
                 source <<
                     "            stack[size - " << (p->symbols.size() - k) <<
-                    "].tokenId == " << sym->getName() << "_id";
+                    "].tokenId == " << sym->getName() << "Id";
                 if (k != 0)
                     source << " &&\n";
             } 
 
             source << ") {\n";
+            source << "            " << n->getName() << "Node" << j << "* "
+                "newNode = new " << n->getName() << "Node" << j << ";\n";
+            for (size_t k = 0; k < p->symbols.size(); k++) {
+                Symbol* sym = p->symbols[k];
+                source << "            " << "newNode->part" << k <<
+                    " = stack[size - " << (p->symbols.size() - k) << "];\n";
+            }
+
+            source << "\n            stack.erase(stack.end() - " <<
+                p->symbols.size() << ", stack.end());\n" <<
+                "            stack.push_back(newNode);\n";
             source << "        }\n";
         }
     }

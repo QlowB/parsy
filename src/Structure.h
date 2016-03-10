@@ -60,7 +60,15 @@ public:
                ((Symbol*) getNonterminal(name));
     }
 
-    void generateParserCode(std::ostream& header, std::ostream& output);
+    /*!
+     * generates the parser code.
+     *
+     * \param header the stream to write the header to
+     * \param output the stream to write the source file to
+     * \param headerName the name to include from the source file
+     */
+    void generateParserCode(std::ostream& header, std::ostream& output,
+            const std::string& headerName);
 };
 
 

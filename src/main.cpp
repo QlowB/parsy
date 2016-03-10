@@ -19,6 +19,7 @@
  *
  * ==========================================================================*/
 #include <iostream>
+#include <fstream>
 #include <cstdio>
 #include "ParserAST.h"
 #include "Structure.h"
@@ -38,7 +39,15 @@ int main(int argc, char** argv)
 
     using parsy::ParserUnit;
     ParserUnit* pu = ParserUnit::createUnit(root);
-    pu->generateParserCode(std::cout, std::cout);
+    if (argc > 1 && argv[1][0] == 'y') {
+        std::ofstream h("P.h");
+        std::ofstream s("P.cpp");
+        pu->generateParserCode(h, s, "P.h");
+        h.close();
+        s.close();
+    }
+    else
+        pu->generateParserCode(std::cout, std::cout, "Parser.h");
     
 }
 
