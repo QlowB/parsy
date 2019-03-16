@@ -32,12 +32,13 @@ extern int yylex();
 int yyerror(const char* msg)
 {
     fprintf(stderr, "error: %s\n", msg);
+    exit(1);
     //throw ParserException("syntax error");
 }
 
 using namespace parsy;
 
-parsy::DescriptionFile* root = 0;
+std::unique_ptr<parsy::DescriptionFile> root;
 
 
 %}
@@ -45,10 +46,13 @@ parsy::DescriptionFile* root = 0;
 %union {
     parsy::DescriptionFile* descriptionFile;
 
-    std::vector<parsy::Rule*>* ruleList;
+    std::vector<std::unique_ptr<parsy::TerminalRule>>* terminalList;
+    parsy::TerminalRule* terminal;
+
+    std::vector<std::unique_ptr<parsy::Rule>>* ruleList;
     parsy::Rule* rule;
 
-    std::vector<parsy::Pattern*>* patternList;
+    std::vector<std::unique_ptr<parsy::Pattern>>* patternList;
     parsy::Pattern* pattern;
     std::string* string;
 
@@ -56,11 +60,14 @@ parsy::DescriptionFile* root = 0;
 };
 
 
-%token <string> IDENTIFIER
-%token <token> NEW_LINE SEMICOLON
+%token <token> TERMINAL
+%token <string> IDENTIFIER REGEX_STRING
+%token <token> NEW_LINE SEMICOLON COLON
 %token <token> ASSIGN PIPE
 
 %type <descriptionFile> descriptionFile
+%type <terminal> terminal
+%type <terminalList> terminalList
 %type <rule> rule
 %type <ruleList> ruleList
 %type <patternList> patternList
@@ -72,52 +79,72 @@ parsy::DescriptionFile* root = 0;
 %%
 
 descriptionFile:
-    ruleList {
+    terminalList ruleList {
         $$ = new DescriptionFile();
-        $$->rules = *$1;
+        $$->terminalRules = std::move(*$1);
+        $$->rules = std::move(*$2);
         delete $1;
-        root = $$;
+        delete $2;
+        root = std::unique_ptr<DescriptionFile> ($$);
     };
 
-    ruleList:
+terminalList:
     /* empty */
     {
-        $$ = new std::vector<parsy::Rule*>();
+        $$ = new std::vector<std::unique_ptr<parsy::TerminalRule>>();
+    }
+    |
+    terminalList terminal {
+        $1->push_back(std::unique_ptr<parsy::TerminalRule>($2));
+    };
+
+terminal:
+    TERMINAL IDENTIFIER ASSIGN REGEX_STRING SEMICOLON {
+        $$ = new parsy::TerminalRule {
+            std::move(*$2), std::move(*$4)
+        };
+        delete $2; delete $4;
+    };
+
+ruleList:
+    /* empty */
+    {
+        $$ = new std::vector<std::unique_ptr<parsy::Rule>>();
     }
     |
     ruleList rule {
-        $1->push_back($2);
+        $1->push_back(std::unique_ptr<parsy::Rule>($2));
     };
 
 rule:
-    IDENTIFIER ASSIGN patternList SEMICOLON {
+    IDENTIFIER COLON patternList SEMICOLON {
         $$ = new Rule();
-        $$->nonterminal = *$1;
+        $$->nonterminal = std::move(*$1);
         delete $1;
-        $$->patterns = *$3;
+        $$->patterns = std::move(*$3);
         delete $3;
     };
 
 patternList:
     pattern {
-        $$ = new std::vector<parsy::Pattern*>();
-        $$->push_back($1);
+        $$ = new std::vector<std::unique_ptr<parsy::Pattern>>();
+        $$->push_back(std::unique_ptr<parsy::Pattern>($1));
     }
     |
     patternList PIPE pattern {
-        $1->push_back($3);
+        $1->push_back(std::unique_ptr<parsy::Pattern>($3));
     };
 
 pattern:
     IDENTIFIER {
         $$ = new parsy::Pattern();
-        $$->pieces.push_back(*$1);
+        $$->pieces.push_back(std::move(*$1));
         delete $1;
         $1 = 0;
     }
     |
     pattern IDENTIFIER {
-        $1->pieces.push_back(*$2);
+        $1->pieces.push_back(std::move(*$2));
         delete $2;
         $2 = 0;
     }

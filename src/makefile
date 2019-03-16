@@ -1,5 +1,5 @@
 CXX         := g++
-WARNFLAGS   := 
+WARNFLAGS   := -Wall 
 CXXFLAGS    := $(WARNFLAGS) -std=c++11
 LNFLAGS     :=
 YACC        := bison

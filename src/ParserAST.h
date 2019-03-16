@@ -18,48 +18,52 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * ==========================================================================*/
-#include <iostream>
-#include <fstream>
-#include <cstdio>
-#include "ParserAST.h"
-#include "Structure.h"
+#ifndef PARSY_PARSERAST_H_
+#define PARSY_PARSERAST_H_
 
-extern FILE* yyin;
-extern std::unique_ptr<parsy::DescriptionFile> root;
-extern int yyparse();
+#include <string>
+#include <vector>
+#include <memory>
+#include <utility>
 
-
-int main(int argc, char** argv)
+namespace parsy
 {
-    bool openedFile = false;
-    yyin = stdin;
-    if (argc > 1) {
-        FILE* f = fopen(argv[1], "r");
-        if (f) {
-            yyin = f;
-            openedFile = true;
-        }
-    }
-    yyparse();
+    struct DescriptionFile;
 
-    if (root.get() == nullptr)
-        return 1;
+    struct TerminalRule;
 
-    if (openedFile)
-        fclose(yyin);
+    struct Rule;
 
-    using parsy::ParserUnit;
-    ParserUnit* pu = ParserUnit::createUnit(root);
-    if (argc > 1 && argv[1][0] == 'y') {
-        std::ofstream h("P.h");
-        std::ofstream s("P.cpp");
-        pu->generateParserCode(h, s, "P.h");
-        h.close();
-        s.close();
-    }
-    else
-        pu->generateParserCode(std::cout, std::cout, "Parser.h");
-    
+    struct Pattern;
 }
 
+
+struct parsy::DescriptionFile
+{
+    std::vector<std::unique_ptr<TerminalRule>> terminalRules;
+    std::vector<std::unique_ptr<Rule>> rules;
+};
+
+
+struct parsy::TerminalRule
+{
+    std::string terminal;
+    std::string regex;
+};
+
+
+struct parsy::Rule
+{
+    std::string nonterminal;
+    std::vector<std::unique_ptr<Pattern>> patterns;
+};
+
+
+struct parsy::Pattern
+{
+    std::vector<std::string> pieces;
+};
+
+
+#endif // PARSY_PARSERAST_H_ 
 

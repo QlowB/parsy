@@ -37,21 +37,30 @@ extern "C" int yywrap()
 %}
 
 
+%x COMMENT
+%x LINE_COMMENT
 %%
 
 
+[\t\n ]                 ; // Space or tab ignored
 
-[\t\n ]                   ; // Space or tab ignored
-\/\*[.\n]*\*\/          ; // comment
+"/*"                    BEGIN(COMMENT);
+<COMMENT>"*/"           BEGIN(INITIAL);
+<COMMENT>\n             ;
+<COMMENT>.              ;
+"//"                    BEGIN(LINE_COMMENT);
+<LINE_COMMENT>\n        BEGIN(INITIAL);
+<LINE_COMMENT>.         ;
 
-
-
+"terminal"              return SET_TOKEN(TERMINAL);
 =                       return SET_TOKEN(ASSIGN);
+:                       return SET_TOKEN(COLON);
 \|                      return SET_TOKEN(PIPE);
 ;                       return SET_TOKEN(SEMICOLON);
 
 
 [a-zA-Z_][a-zA-Z0-9_]*  SET_STRING; return IDENTIFIER;
+\"[^\"]*\"              SET_STRING; return REGEX_STRING;
 .                       printf("Unknown token!\n"); yyterminate();
 
 %%

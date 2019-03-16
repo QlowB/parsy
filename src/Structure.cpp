@@ -23,33 +23,47 @@
 
 using namespace parsy;
 
-ParserUnit* ParserUnit::createUnit(DescriptionFile* file)
+#include <iostream>
+
+
+ParserUnit* ParserUnit::createUnit(const std::unique_ptr<DescriptionFile>& file)
 {
+    using std::unique_ptr;
     ParserUnit* pu = new ParserUnit();
-    for (size_t i = 0; i < file->rules.size(); i++) {
-        Rule* r = file->rules[i];
-        Nonterminal* nt = new Nonterminal(r->nonterminal);
-        pu->nonterminals.push_back(nt);
+
+    for (auto& tr : file->terminalRules) {
+        auto term = unique_ptr<Terminal>(new Terminal(tr->terminal));
+        pu->terminals.push_back(std::move(term));
     }
 
     for (size_t i = 0; i < file->rules.size(); i++) {
-        Rule* r = file->rules[i];
-        Nonterminal* nt = pu->nonterminals[i];
+        Rule* r = file->rules[i].get();
+        Nonterminal* nt = new Nonterminal(r->nonterminal);
+        pu->nonterminals.push_back(unique_ptr<Nonterminal>(nt));
+    }
+
+    for (size_t i = 0; i < file->rules.size(); i++) {
+        Rule* r = file->rules[i].get();
+        Nonterminal* nt = pu->nonterminals[i].get();
         for (size_t j = 0; j < r->patterns.size(); j++) {
-            Pattern* pattern = r->patterns[j];
+            Pattern* pattern = r->patterns[j].get();
             SymbolPattern* sp = new SymbolPattern();
             nt->patterns.push_back(sp);
-            for (auto k = pattern->pieces.begin();
-                    k != pattern->pieces.end(); k++) {
-                Symbol* s = pu->getSymbol(*k);
+            for (std::string& k : pattern->pieces) {
+                Symbol* s = pu->getSymbol(k);
                 if (s != nullptr) {
                     sp->addSymbol(s);
                 }
                 else {
-                    Terminal* t = new Terminal(*k);
-                    pu->addTerminal(t);
-                    sp->addSymbol(t);
+                    throw SemanticException{ std::string("unknown symbol ") +
+                        k };
                 }
+                /*
+                else {
+                    Terminal* t = new Terminal(*k);
+                    pu->addTerminal(unique_ptr<Terminal> (t));
+                    sp->addSymbol(t);
+                }*/
             }
         }
     }
@@ -59,9 +73,9 @@ ParserUnit* ParserUnit::createUnit(DescriptionFile* file)
 
 Nonterminal* ParserUnit::getNonterminal(const std::string& name)
 {
-    for (auto i = nonterminals.begin(); i != nonterminals.end(); i++) {
-        if ((*i)->getName() == name) {
-            return *i;
+    for (auto& i : nonterminals) {
+        if (i->getName() == name) {
+            return i.get();
         }
     }
     return nullptr;
@@ -70,9 +84,9 @@ Nonterminal* ParserUnit::getNonterminal(const std::string& name)
 
 Terminal* ParserUnit::getTerminal(const std::string& name)
 {
-    for (auto i = terminals.begin(); i != terminals.end(); i++) {
-        if ((*i)->getName() == name) {
-            return *i;
+    for (auto& i : terminals) {
+        if (i->getName() == name) {
+            return i.get();
         }
     }
     return nullptr;
@@ -102,7 +116,7 @@ void ParserUnit::generateParserCode(std::ostream& header, std::ostream& source,
         "};\n\n\n";
 
     for (size_t i = 0; i < nonterminals.size(); i++) {
-        Nonterminal* nt = nonterminals[i];
+        Nonterminal* nt = nonterminals[i].get();
         std::string baseName = nt->getName() + "NodeBase";
         header <<
             "struct " << baseName << " : public NodeBase\n{\n" <<
@@ -156,14 +170,14 @@ void ParserUnit::generateParserCode(std::ostream& header, std::ostream& source,
         "        const size_t size = stack.size();\n";
 
     for (size_t i = 0; i < nonterminals.size(); i++) {
-        Nonterminal* n = nonterminals[i];
+        Nonterminal* n = nonterminals[i].get();
         for (size_t j = 0; j < n->patterns.size(); j++) {
             SymbolPattern* p = n->patterns[j];
             source <<
                 "\n        // check for " << n->getName() << "\n"
                 "        if (size >= " << p->symbols.size() << " &&\n";
             // assert: p->symbols.size() > 0
-            for (size_t k = p->symbols.size() - 1; k != ~0; k--) {
+            for (size_t k = p->symbols.size() - 1; k != ~size_t(0); k--) {
                 Symbol* sym = p->symbols[k];
                 source <<
                     "            stack[size - " << (p->symbols.size() - k) <<

@@ -24,6 +24,7 @@
 
 #include <vector>
 #include <iostream>
+#include <exception>
 
 #include "Tokens.h"
 #include "ParserAST.h"
@@ -37,26 +38,30 @@ namespace parsy
     struct Nonterminal;
 
     class SymbolPattern;
+
+    struct SemanticException;
 }
 
 
 class parsy::ParserUnit
 {
     Nonterminal* start;
-    std::vector<Nonterminal*> nonterminals;
-    std::vector<Terminal*> terminals;
+    std::vector<std::unique_ptr<Nonterminal>> nonterminals;
+    std::vector<std::unique_ptr<Terminal>> terminals;
 public:
 
-    static ParserUnit* createUnit(DescriptionFile* file);
+    static ParserUnit* createUnit(const std::unique_ptr<DescriptionFile>& file);
 
     Nonterminal* getNonterminal(const std::string& name);
     Terminal* getTerminal(const std::string& name);
 
-    inline void addTerminal(Terminal* t) { terminals.push_back(t); }
+    inline void addTerminal(std::unique_ptr<Terminal>&& t)
+        { terminals.push_back(std::move(t)); }
 
     inline Symbol* getSymbol(const std::string& name)
     {
-        return ((Symbol*) getTerminal(name)) ? :
+        Symbol* s = (Symbol*) getTerminal(name);
+        return s != nullptr ? s :
                ((Symbol*) getNonterminal(name));
     }
 
@@ -101,6 +106,14 @@ public:
     std::vector<Symbol*> symbols;
     inline void addSymbol(Symbol* symbol) { symbols.push_back(symbol); }
 };
+
+struct parsy::SemanticException :
+    std::runtime_error
+{
+    inline SemanticException(const std::string& msg) :
+        runtime_error(msg) {}
+};
+
 
 #endif // PARSY_STRUCTURE_H_
 
